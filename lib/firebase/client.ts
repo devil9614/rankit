@@ -234,16 +234,19 @@ export async function getPublishedLists(): Promise<ListCard[]> {
   const listQuery = query(
     collection(db, "lists"),
     where("published", "==", true),
-    orderBy("activityAt", "desc"),
     limit(24)
   );
   const snapshot = await getDocs(listQuery);
-  return snapshot.docs.map((item) => ({
-    id: item.id,
-    slug: String(item.data().slug),
-    title: String(item.data().title),
-    isSeed: Boolean(item.data().isSeed),
-    voteCount: Number(item.data().voteCount ?? 0),
-    itemCount: Number(item.data().itemCount ?? 0)
-  }));
+  return snapshot.docs
+    .map((item) => ({
+      id: item.id,
+      slug: String(item.data().slug),
+      title: String(item.data().title),
+      isSeed: Boolean(item.data().isSeed),
+      voteCount: Number(item.data().voteCount ?? 0),
+      itemCount: Number(item.data().itemCount ?? 0),
+      activityAt: item.data().activityAt?.toMillis?.() ?? 0
+    }))
+    .sort((a, b) => b.activityAt - a.activityAt)
+    .map(({ activityAt: _activityAt, ...list }) => list);
 }
