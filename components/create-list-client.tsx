@@ -26,6 +26,13 @@ const initialItems: DraftItem[] = [
   { id: "draft-2", title: "", imageUrl: "" },
   { id: "draft-3", title: "", imageUrl: "" }
 ];
+const timingOptions = [
+  { label: "No limit", value: null, note: "Always open" },
+  { label: "1 hour", value: 60, note: "Flash round" },
+  { label: "24 hours", value: 1440, note: "Daily battle" },
+  { label: "3 days", value: 4320, note: "Weekend event" },
+  { label: "7 days", value: 10080, note: "Full competition" }
+] as const;
 
 function itemsFromNames(names: string[]): DraftItem[] {
   return names.slice(0, 40).map((name) => ({ id: crypto.randomUUID(), title: name.trim(), imageUrl: "" }));
@@ -80,6 +87,7 @@ export function CreateListClient() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionMessage, setSuggestionMessage] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -173,7 +181,7 @@ export function CreateListClient() {
 
     try {
       setIsPublishing(true);
-      const slug = await createPublishedList(normalizedTitle, completeItems);
+      const slug = await createPublishedList(normalizedTitle, completeItems, durationMinutes);
       rememberCreatedList(slug, normalizedTitle);
       router.push(`/l/${slug}`);
     } catch {
@@ -239,6 +247,21 @@ export function CreateListClient() {
                   </>}
                 </div>
               )}
+            </section>
+
+            <section className="timing-tool" aria-labelledby="timing-title">
+              <div className="timing-heading">
+                <div><span className="eyebrow">competition mode</span><h2 id="timing-title">Set the voting window.</h2></div>
+                <span className="timing-status">{durationMinutes ? "Timed" : "Always open"}</span>
+              </div>
+              <div className="timing-options">
+                {timingOptions.map((option) => (
+                  <button className={durationMinutes === option.value ? "is-selected" : ""} key={option.label} type="button" onClick={() => setDurationMinutes(option.value)}>
+                    <strong>{option.label}</strong><small>{option.note}</small>
+                  </button>
+                ))}
+              </div>
+              <p>Timed boards lock voting automatically and preserve the final result. The countdown also appears inside every embed.</p>
             </section>
 
             <div className="items-label-row">

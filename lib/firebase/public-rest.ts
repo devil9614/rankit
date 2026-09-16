@@ -93,6 +93,7 @@ export async function getPublicListFromRest(slug: string): Promise<RankedList | 
     voteCount: Number(value(fields.voteCount) ?? 0),
     itemCount: Number(value(fields.itemCount) ?? items.length),
     createdAt: typeof value(fields.createdAt) === "string" ? String(value(fields.createdAt)) : null,
+    closesAt: typeof value(fields.closesAt) === "string" ? String(value(fields.closesAt)) : null,
     items
   };
 }

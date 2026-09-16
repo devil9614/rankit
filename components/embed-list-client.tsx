@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { castFirebaseVote, getVotingSession, isFirebaseConfigured, subscribeToList } from "@/lib/firebase/client";
 import { pairKey, rankItems } from "@/lib/ranking";
 import type { RankItem, RankedList } from "@/lib/types";
+import { useCountdown } from "@/lib/use-countdown";
 
 function nextPair(items: RankItem[], seen: Set<string>) {
   const ranked = rankItems(items);
@@ -37,6 +38,7 @@ export function EmbedListClient({ initialList }: { initialList: RankedList }) {
   const live = isFirebaseConfigured() && !list.id.startsWith("demo-");
   const order = useMemo(() => rankItems(list.items), [list.items]);
   const pair = useMemo(() => nextPair(order, seen), [order, seen]);
+  const countdown = useCountdown(list.closesAt);
 
   useEffect(() => {
     if (!live) return;
@@ -51,7 +53,7 @@ export function EmbedListClient({ initialList }: { initialList: RankedList }) {
   }, [list.id, live]);
 
   async function vote(winnerId: string) {
-    if (!pair || busy || completed >= 5) return;
+    if (!pair || busy || completed >= 5 || countdown.closed) return;
     if (!live) return setMessage("Open the full ranking to vote.");
     try {
       setBusy(true);
@@ -67,7 +69,7 @@ export function EmbedListClient({ initialList }: { initialList: RankedList }) {
     }
   }
 
-  const done = completed >= 5 || !pair;
+  const done = completed >= 5 || !pair || countdown.closed;
   return (
     <main className="embed-app">
       <header className="embed-header">
@@ -77,7 +79,7 @@ export function EmbedListClient({ initialList }: { initialList: RankedList }) {
       <section className="embed-title">
         <p>LIVE RANKING · {list.itemCount} PICKS</p>
         <h1>{list.title}</h1>
-        <div><span>{list.voteCount} choices</span><span>{Math.min(completed, 5)}/5 yours</span></div>
+        <div><span>{list.voteCount} choices</span><span className={countdown.closed ? "is-closed" : ""}>{countdown.compact}</span><span>{Math.min(completed, 5)}/5 yours</span></div>
       </section>
       {!done ? (
         <section className="embed-vote" aria-label="Vote on this ranking">
@@ -91,7 +93,7 @@ export function EmbedListClient({ initialList }: { initialList: RankedList }) {
           {message && <p className="embed-message" role="alert">{message}</p>}
         </section>
       ) : (
-        <section className="embed-done"><span>✓</span><div><strong>Your take is on the board.</strong><p>See how the full community ranking moved.</p></div><a href={`/l/${list.slug}`} target="_blank" rel="noreferrer">See results ↗</a></section>
+        <section className="embed-done"><span>{countdown.closed ? "■" : "✓"}</span><div><strong>{countdown.closed ? "The final ranking is in." : "Your take is on the board."}</strong><p>{countdown.closed ? "Voting has closed. This result is final." : "See how the full community ranking moved."}</p></div><a href={`/l/${list.slug}`} target="_blank" rel="noreferrer">See results ↗</a></section>
       )}
       <section className="embed-board">
         <div className="embed-board-head"><strong>Community top five</strong><span>updates live</span></div>

@@ -14,6 +14,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  Timestamp,
   where,
   writeBatch
 } from "firebase/firestore";
@@ -86,11 +87,14 @@ function toList(id: string, data: Record<string, unknown>, items: RankItem[]): R
     voteCount: Number(data.voteCount ?? 0),
     itemCount: Number(data.itemCount ?? items.length),
     createdAt: null,
+    closesAt: typeof data.closesAt === "object" && data.closesAt !== null && "toDate" in data.closesAt
+      ? (data.closesAt as { toDate: () => Date }).toDate().toISOString()
+      : null,
     items
   };
 }
 
-export async function createPublishedList(title: string, draftItems: DraftItem[]) {
+export async function createPublishedList(title: string, draftItems: DraftItem[], durationMinutes: number | null = null) {
   const user = await ensureAnonymousUser();
   const db = firestore();
   const cleanItems = draftItems
@@ -112,7 +116,8 @@ export async function createPublishedList(title: string, draftItems: DraftItem[]
     voteCount: 0,
     createdAt: serverTimestamp(),
     publishedAt: serverTimestamp(),
-    activityAt: serverTimestamp()
+    activityAt: serverTimestamp(),
+    closesAt: durationMinutes ? Timestamp.fromMillis(Date.now() + durationMinutes * 60_000) : null
   });
 
   cleanItems.forEach((item, index) => {
@@ -289,6 +294,7 @@ export async function getPublishedLists(): Promise<ListCard[]> {
       isSeed: Boolean(item.data().isSeed),
       voteCount: Number(item.data().voteCount ?? 0),
       itemCount: Number(item.data().itemCount ?? 0),
+      closesAt: item.data().closesAt?.toDate?.().toISOString?.() ?? null,
       activityAt: item.data().activityAt?.toMillis?.() ?? 0
     }))
     .sort((a, b) => b.activityAt - a.activityAt)

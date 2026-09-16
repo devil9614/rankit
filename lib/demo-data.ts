@@ -52,7 +52,8 @@ export const demoLists: ListCard[] = demos.map((demo) => ({
   title: demo.title,
   isSeed: true,
   voteCount: 0,
-  itemCount: demo.items.length
+  itemCount: demo.items.length,
+  closesAt: null
 }));
 
 export function getDemoList(slug: string): RankedList | null {
@@ -70,6 +71,7 @@ export function getDemoList(slug: string): RankedList | null {
     voteCount: 0,
     itemCount: demo.items.length,
     createdAt: null,
+    closesAt: null,
     items: demo.items.map((title, index) => ({
       id: `${demo.id}-${index + 1}`,
       title,

@@ -18,9 +18,11 @@ service cloud.firestore {
     }
 
     function validSessionIncrement(listId) {
+      let list = get(/databases/$(database)/documents/lists/$(listId)).data;
       let session = getAfter(/databases/$(database)/documents/lists/$(listId)/sessions/$(request.auth.uid)).data;
       let vote = getAfter(/databases/$(database)/documents/lists/$(listId)/votes/$(session.lastVoteId)).data;
       return session.count == previousSessionCount(listId) + 1
+        && (!('closesAt' in list) || list.closesAt == null || request.time < list.closesAt)
         && session.count <= 5
         && session.seenPairs.size() == session.count
         && session.picks.size() == session.count

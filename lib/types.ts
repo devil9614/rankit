@@ -19,10 +19,11 @@ export type RankedList = {
   voteCount: number;
   itemCount: number;
   createdAt: string | null;
+  closesAt: string | null;
   items: RankItem[];
 };
 
-export type ListCard = Pick<RankedList, "id" | "slug" | "title" | "isSeed" | "voteCount" | "itemCount">;
+export type ListCard = Pick<RankedList, "id" | "slug" | "title" | "isSeed" | "voteCount" | "itemCount" | "closesAt">;
 
 export type DraftItem = {
   id: string;

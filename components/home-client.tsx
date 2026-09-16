@@ -68,7 +68,7 @@ export function HomeClient({ initialLists }: { initialLists: ListCard[] }) {
               <Link className="list-card" href={`/l/${list.slug}`} key={list.id}>
                 <div className="card-topline">
                   <span className="card-index">{cardMarks[index] ?? String(index + 1).padStart(2, "0")}</span>
-                  {list.isSeed && <span className="seed-tag">starter list</span>}
+                  {list.closesAt ? <span className="seed-tag competition-tag">timed</span> : list.isSeed && <span className="seed-tag">starter list</span>}
                 </div>
                 <h3>{list.title}</h3>
                 <p className="card-prompt">What belongs at the top?</p>

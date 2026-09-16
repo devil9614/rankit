@@ -8,6 +8,7 @@ import { castFirebaseVote, getVotingSession, isFirebaseConfigured, subscribeToLi
 import { rememberVotedList } from "@/lib/local-history";
 import { pairKey, rankItems, type PersonalVote } from "@/lib/ranking";
 import type { RankItem, RankedList } from "@/lib/types";
+import { useCountdown } from "@/lib/use-countdown";
 
 function findNextPair(items: RankItem[], seen: Set<string>) {
   const ranked = rankItems(items);
@@ -62,7 +63,8 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
   const pair = useMemo(() => findNextPair(communityOrder, seenPairs), [communityOrder, seenPairs]);
   const firebaseReady = isFirebaseConfigured();
   const isPreviewList = list.id.startsWith("demo-");
-  const votingComplete = completed >= 5;
+  const countdown = useCountdown(list.closesAt);
+  const votingComplete = completed >= 5 || countdown.closed;
 
   useEffect(() => {
     if (!firebaseReady || isPreviewList) return;
@@ -136,7 +138,7 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
         <SiteHeader />
         <section className="list-hero">
           <div>
-            <p className="eyebrow">ranking / {list.itemCount} picks</p>
+            <p className="eyebrow">ranking / {list.itemCount} picks <span className={`deadline-pill ${countdown.closed ? "is-closed" : ""}`}>{countdown.label}</span></p>
             <h1>{list.title}</h1>
           </div>
           <div className="list-actions">
@@ -183,7 +185,14 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
             <div className="vote-progress" aria-hidden="true">
               {[0, 1, 2, 3, 4].map((step) => <span className={step < completed ? "is-complete" : step === completed ? "is-current" : ""} key={step} />)}
             </div>
-            {votingComplete ? (
+            {countdown.closed ? (
+              <div className="vote-finish competition-finish">
+                <p className="vote-kicker">Time called.</p>
+                <h2 id="vote-title">The final ranking is in.</h2>
+                <p>This competition has closed. The board below is preserved as the final community result.</p>
+                <a className="button button-light" href="#community-ranking">See final results ↓</a>
+              </div>
+            ) : votingComplete ? (
               <div className="vote-finish">
                 <p className="vote-kicker">You made your case.</p>
                 <h2 id="vote-title">The board has moved.</h2>

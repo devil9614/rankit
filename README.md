@@ -13,6 +13,8 @@ RankIt is a public ranking game: publish your order, share it, and let visitors 
 - A personal "verdict" reveal after voting: your order vs. the room, with a contrarian score, once you've cast your five picks
 - A no-account "Your rankings" page (`/mine`) that remembers what you made and judged in this browser
 - Dynamic per-list Open Graph and Twitter card images that reflect live vote counts
+- Optional 1-hour, 24-hour, 3-day, and 7-day competition windows with database-enforced closing times
+- Responsive live embeds with in-frame voting, countdowns, and final community results
 - Curated seed-list script and Firebase security rules
 
 ## Connect Firebase
