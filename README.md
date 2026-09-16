@@ -37,12 +37,12 @@ The web configuration is sufficient for creation, public pages, voting, share ca
 
 ## Optional: AI-backed suggestions
 
-The "Find suggestions" tool on `/create` calls a low-cost model through [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) when `AI_GATEWAY_API_KEY` is set, and silently falls back to a built-in offline list (works with zero setup, zero cost, and never fails) when it is not. To enable it:
+The "Find suggestions" tool on `/create` calls **Gemini 2.5 Flash-Lite directly on Google AI Studio's free tier** when `GEMINI_API_KEY` is set, and silently falls back to a built-in offline list (zero setup, zero cost, never fails) when it is not. This is a genuinely free tier — no card on file, limited by requests per minute/day rather than spend — so the feature costs nothing at hobby-project volume. To enable it:
 
-1. In the Vercel dashboard, open **AI Gateway → API Keys** for your team and create a key.
-2. Add it as `AI_GATEWAY_API_KEY` in your environment (see `.env.example`).
+1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and create a free API key (no billing account needed).
+2. Add it as `GEMINI_API_KEY` in your environment (see `.env.example`).
 
-No dependency was added for this — the route calls the Gateway's OpenAI-compatible REST endpoint directly with `fetch`.
+No dependency was added for this — the route calls Gemini's REST endpoint directly with `fetch`. If the free-tier rate limit is ever hit, the route just falls back to the offline list rather than erroring.
 
 ## Run locally
 
@@ -52,7 +52,7 @@ npm run dev
 
 ## Deploy
 
-Deploy the Next.js app to Vercel. Add every value from `.env.local` (the Firebase settings, and optionally `AI_GATEWAY_API_KEY` and `NEXT_PUBLIC_SITE_URL`, see `.env.example`) to the Vercel project's environment settings, then point `rankit.logidev.in` to that project. Firebase remains the identity and database layer; Vercel only runs the website and secure vote endpoint.
+Deploy the Next.js app to Vercel. Add every value from `.env.local` (the Firebase settings, and optionally `GEMINI_API_KEY` and `NEXT_PUBLIC_SITE_URL`, see `.env.example`) to the Vercel project's environment settings, then point `rankit.logidev.in` to that project. Firebase remains the identity and database layer; Vercel only runs the website and secure vote endpoint.
 
 If you update `firestore.rules` or `firestore.indexes.json` after the initial launch, redeploy them:
 

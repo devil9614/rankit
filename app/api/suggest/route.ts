@@ -3,10 +3,14 @@ import { offlineSuggestions } from "@/lib/suggest-fallback";
 
 export const runtime = "nodejs";
 
-// Recent knowledge cutoff and cheap enough that a suggestion costs a fraction
-// of a cent. Verified against https://ai-gateway.vercel.sh/v1/models.
-const MODEL = "google/gemini-3.5-flash-lite";
-const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+// Called directly against Google AI Studio's free tier (not Vercel AI
+// Gateway, which is metered even for Gemini) so this feature costs nothing
+// at hobby-project volume. Get a key with no card required at
+// https://aistudio.google.com/apikey — free-tier rate limits are per
+// minute/day, not spend, so worst case is a temporary 429, handled below by
+// falling back to the offline list.
+const MODEL = "gemini-2.5-flash-lite";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const MAX_SUGGESTIONS = 12;
 
 const systemPrompt = [
@@ -34,32 +38,34 @@ function cleanSuggestions(raw: unknown, exclude: Set<string>) {
 }
 
 async function aiSuggestions(query: string, exclude: Set<string>, signal: AbortSignal) {
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const response = await fetch(GATEWAY_URL, {
+  const response = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     signal,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Suggest up to ${MAX_SUGGESTIONS} items for a ranked list titled: "${query}"` }
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [
+        { role: "user", parts: [{ text: `Suggest up to ${MAX_SUGGESTIONS} items for a ranked list titled: "${query}"` }] }
       ],
-      max_tokens: 400,
-      temperature: 0.7,
-      response_format: { type: "json_object" }
+      generationConfig: {
+        maxOutputTokens: 400,
+        temperature: 0.7,
+        responseMimeType: "application/json"
+      }
     })
   });
 
+  // A free-tier rate limit (429) or any other failure just falls through to
+  // the offline list — never surfaced to the visitor as an error.
   if (!response.ok) return null;
 
-  const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const content = body.choices?.[0]?.message?.content;
+  const body = await response.json() as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const content = body.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!content) return null;
 
   try {
