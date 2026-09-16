@@ -55,6 +55,8 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
   const [isVoting, setIsVoting] = useState(false);
   const [voteError, setVoteError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [embedOpen, setEmbedOpen] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
   const communityOrder = useMemo(() => rankItems(list.items), [list.items]);
   const creatorOrder = useMemo(() => [...list.items].sort((a, b) => a.creatorPosition - b.creatorPosition), [list.items]);
   const pair = useMemo(() => findNextPair(communityOrder, seenPairs), [communityOrder, seenPairs]);
@@ -117,6 +119,17 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
+  function embedCode() {
+    const origin = typeof window === "undefined" ? "https://rankit.logidev.in" : window.location.origin;
+    return `<iframe src="${origin}/embed/${list.slug}" title="${list.title.replaceAll('"', "&quot;")}" width="100%" height="720" style="border:0;max-width:900px" loading="lazy" allow="clipboard-write" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  }
+
+  async function copyEmbed() {
+    await navigator.clipboard.writeText(embedCode());
+    setEmbedCopied(true);
+    window.setTimeout(() => setEmbedCopied(false), 1800);
+  }
+
   return (
     <main>
       <div className="page-shell list-shell">
@@ -126,8 +139,25 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
             <p className="eyebrow">ranking / {list.itemCount} picks</p>
             <h1>{list.title}</h1>
           </div>
-          <button type="button" className="share-button" onClick={() => void share()}>{copied ? "Link copied" : "Share"} <span aria-hidden="true">↗</span></button>
+          <div className="list-actions">
+            <button type="button" className="share-button" onClick={() => setEmbedOpen(true)}>Embed <span aria-hidden="true">&lt;/&gt;</span></button>
+            <button type="button" className="share-button" onClick={() => void share()}>{copied ? "Link copied" : "Share"} <span aria-hidden="true">↗</span></button>
+          </div>
         </section>
+
+        {embedOpen && (
+          <div className="embed-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEmbedOpen(false); }}>
+            <section className="embed-modal" role="dialog" aria-modal="true" aria-labelledby="embed-title">
+              <button className="embed-close" type="button" onClick={() => setEmbedOpen(false)} aria-label="Close embed dialog">×</button>
+              <p className="eyebrow">put this board anywhere</p>
+              <h2 id="embed-title">Embed the argument.</h2>
+              <p className="embed-modal-copy">Paste this iframe into any site builder or HTML page. It is responsive, loads lazily, and keeps voting and results live.</p>
+              <div className="embed-preview"><iframe src={`/embed/${list.slug}`} title={`Embed preview: ${list.title}`} /></div>
+              <label className="embed-code-label">Embed code<textarea readOnly value={embedCode()} rows={5} onFocus={(event) => event.currentTarget.select()} /></label>
+              <div className="embed-modal-actions"><span>Recommended height: 720px</span><button className="button button-primary" type="button" onClick={() => void copyEmbed()}>{embedCopied ? "Copied" : "Copy embed code"} <span aria-hidden="true">→</span></button></div>
+            </section>
+          </div>
+        )}
 
         <div className="ranking-layout">
           <section className="creator-ranking" aria-labelledby="creator-order-title">
