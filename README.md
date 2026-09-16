@@ -5,6 +5,7 @@ RankIt is a public ranking game: publish your order, share it, and let visitors 
 ## What is built
 
 - Anonymous creation with Firebase Auth
+- One-click starter packs, paste-to-rank input, and topic-aware item additions
 - Public, permanent list pages
 - Touch-friendly drag ordering
 - Creator and community rankings displayed separately
