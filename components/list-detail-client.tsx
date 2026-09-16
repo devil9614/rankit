@@ -150,6 +150,9 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
               <p className="eyebrow"><span className="live-dot" /> your turn</p>
               <span>{Math.min(completed + 1, 5)} / 5</span>
             </div>
+            <div className="vote-progress" aria-hidden="true">
+              {[0, 1, 2, 3, 4].map((step) => <span className={step < completed ? "is-complete" : step === completed ? "is-current" : ""} key={step} />)}
+            </div>
             {votingComplete ? (
               <div className="vote-finish">
                 <p className="vote-kicker">You made your case.</p>

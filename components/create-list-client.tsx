@@ -192,6 +192,11 @@ export function CreateListClient() {
             <p className="eyebrow">your call</p>
             <h1 id="create-title">Make the<br />ranking.</h1>
             <p>Start with your honest order. Everyone else will get their turn afterwards.</p>
+            <ol className="create-steps" aria-label="Creation steps">
+              <li className={title.trim() ? "is-done" : "is-current"}><span>01</span><div><strong>Name the debate</strong><small>Make the question irresistible.</small></div></li>
+              <li className={completeItems.length >= 3 ? "is-done" : title.trim() ? "is-current" : ""}><span>02</span><div><strong>Build your order</strong><small>Three picks minimum. Drag freely.</small></div></li>
+              <li className={completeItems.length >= 3 ? "is-current" : ""}><span>03</span><div><strong>Drop the link</strong><small>The room gets five choices.</small></div></li>
+            </ol>
             <div className="create-notes">
               <span>3–40 items</span><span>•</span><span>no sign-up wall</span><span>•</span><span>shareable link</span>
             </div>
@@ -238,7 +243,7 @@ export function CreateListClient() {
 
             <div className="items-label-row">
               <span>Put them in order</span>
-              <span>{completeItems.length} named</span>
+              <span className={completeItems.length >= 3 ? "count-ready" : ""}>{completeItems.length} / 3 minimum</span>
             </div>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={reorder}>
               <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
