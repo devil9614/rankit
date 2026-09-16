@@ -5,16 +5,18 @@ import { getAuth, onAuthStateChanged, signInAnonymously, type User } from "fireb
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   getFirestore,
   limit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
-  setDoc,
   where,
   writeBatch
 } from "firebase/firestore";
+import { calculateEloWinner, pairKey } from "@/lib/ranking";
 import { slugify } from "@/lib/slug";
 import type { DraftItem, ListCard, RankItem, RankedList } from "@/lib/types";
 
@@ -131,12 +133,100 @@ export async function createPublishedList(title: string, draftItems: DraftItem[]
 
 export async function getPublicListBySlug(slug: string) {
   const db = firestore();
-  const listQuery = query(collection(db, "lists"), where("slug", "==", slug), limit(1));
+  const listQuery = query(collection(db, "lists"), where("slug", "==", slug), where("published", "==", true), limit(1));
   const listSnapshot = await getDocs(listQuery);
   if (listSnapshot.empty) return null;
   const listDoc = listSnapshot.docs[0];
   const itemSnapshot = await getDocs(query(collection(listDoc.ref, "items"), orderBy("creatorPosition", "asc")));
   return toList(listDoc.id, listDoc.data(), itemSnapshot.docs.map((item) => toRankItem(item.id, item.data())));
+}
+
+export async function getVotingSession(listId: string) {
+  const user = await ensureAnonymousUser();
+  const snapshot = await getDoc(doc(firestore(), "lists", listId, "sessions", user.uid));
+  const data = snapshot.data();
+  return {
+    count: Number(data?.count ?? 0),
+    seenPairs: Array.isArray(data?.seenPairs) ? data.seenPairs.filter((value): value is string => typeof value === "string") : []
+  };
+}
+
+export async function castFirebaseVote(list: RankedList, itemAId: string, itemBId: string, winnerItemId: string) {
+  const user = await ensureAnonymousUser();
+  const db = firestore();
+  const listRef = doc(db, "lists", list.id);
+  const canonicalPair = pairKey(itemAId, itemBId);
+  const voteId = `${user.uid}_${canonicalPair}`;
+  const voteRef = doc(db, "lists", list.id, "votes", voteId);
+  const sessionRef = doc(db, "lists", list.id, "sessions", user.uid);
+  const itemRefs = list.items.map((item) => doc(db, "lists", list.id, "items", item.id));
+
+  return runTransaction(db, async (transaction) => {
+    const listSnapshot = await transaction.get(listRef);
+    const voteSnapshot = await transaction.get(voteRef);
+    const sessionSnapshot = await transaction.get(sessionRef);
+    const itemSnapshots = await Promise.all(itemRefs.map((itemRef) => transaction.get(itemRef)));
+    if (!listSnapshot.exists() || listSnapshot.data().published !== true) throw new Error("This list is no longer available.");
+    if (voteSnapshot.exists()) throw new Error("You have already judged this matchup.");
+
+    const priorSessionVotes = Number(sessionSnapshot.data()?.count ?? 0);
+    const priorSeenPairs = Array.isArray(sessionSnapshot.data()?.seenPairs)
+      ? sessionSnapshot.data()!.seenPairs.filter((value: unknown): value is string => typeof value === "string")
+      : [];
+    if (priorSessionVotes >= 5) throw new Error("You have already made five choices on this list.");
+
+    const items = itemSnapshots.map((snapshot) => {
+      if (!snapshot.exists()) throw new Error("One of the ranked items no longer exists.");
+      return toRankItem(snapshot.id, snapshot.data());
+    });
+    const first = items.find((item) => item.id === itemAId);
+    const second = items.find((item) => item.id === itemBId);
+    if (!first || !second || (winnerItemId !== first.id && winnerItemId !== second.id)) throw new Error("That matchup is not valid.");
+
+    const winner = winnerItemId === first.id ? first : second;
+    const loser = winnerItemId === first.id ? second : first;
+    const updatedRatings = calculateEloWinner(winner.rating, loser.rating);
+    winner.rating = updatedRatings.winner;
+    loser.rating = updatedRatings.loser;
+    winner.comparisonCount += 1;
+    loser.comparisonCount += 1;
+    const ranked = [...items]
+      .sort((a, b) => b.rating - a.rating || a.creatorPosition - b.creatorPosition)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+    const sessionVotes = priorSessionVotes + 1;
+
+    ranked.forEach((item) => transaction.update(doc(db, "lists", list.id, "items", item.id), {
+      rating: item.rating,
+      rank: item.rank,
+      comparisonCount: item.comparisonCount
+    }));
+    transaction.set(voteRef, {
+      listId: list.id,
+      itemAId: [itemAId, itemBId].sort()[0],
+      itemBId: [itemAId, itemBId].sort()[1],
+      winnerItemId,
+      voterId: user.uid,
+      sequence: sessionVotes,
+      createdAt: serverTimestamp()
+    });
+    transaction.set(sessionRef, {
+      count: sessionVotes,
+      lastVoteId: voteId,
+      seenPairs: [...priorSeenPairs, canonicalPair],
+      updatedAt: serverTimestamp()
+    });
+    transaction.update(listRef, {
+      voteCount: Number(listSnapshot.data().voteCount ?? 0) + 1,
+      activityAt: serverTimestamp()
+    });
+
+    return {
+      items: ranked,
+      voteCount: Number(listSnapshot.data().voteCount ?? 0) + 1,
+      sessionVotes,
+      seenPairs: [...priorSeenPairs, canonicalPair]
+    };
+  });
 }
 
 export async function getPublishedLists(): Promise<ListCard[]> {

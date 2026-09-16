@@ -1,19 +1,27 @@
 import { existsSync } from "node:fs";
+import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
+import { collection, doc, getDocs, getFirestore, limit, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
 
 if (existsSync(".env.local") && process.loadEnvFile) process.loadEnvFile(".env.local");
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const config = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+};
 
-if (!projectId || !clientEmail || !privateKey) {
-  throw new Error("Add FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to .env.local before seeding.");
+if (!config.apiKey || !config.authDomain || !config.projectId || !config.appId) {
+  throw new Error("Add the NEXT_PUBLIC_FIREBASE_* web settings to .env.local before seeding.");
 }
 
-const { cert, initializeApp } = await import("firebase-admin/app");
-const { getFirestore, FieldValue } = await import("firebase-admin/firestore");
-const app = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+const app = initializeApp(config);
+const auth = getAuth(app);
 const db = getFirestore(app);
+const user = (await signInAnonymously(auth)).user;
 
 const seeds = [
   ["Every Assassin's Creed game, ranked", ["Assassin's Creed II", "Assassin's Creed IV: Black Flag", "Assassin's Creed Brotherhood", "Assassin's Creed Origins", "Assassin's Creed Unity", "Assassin's Creed Valhalla"]],
@@ -26,33 +34,34 @@ const seeds = [
 
 for (const [title, itemTitles] of seeds) {
   const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 54)}-seed`;
-  const existing = await db.collection("lists").where("slug", "==", slug).limit(1).get();
+  const existing = await getDocs(query(collection(db, "lists"), where("slug", "==", slug), where("published", "==", true), limit(1)));
   if (!existing.empty) continue;
 
-  const listRef = db.collection("lists").doc();
-  const batch = db.batch();
+  const listRef = doc(collection(db, "lists"));
+  const batch = writeBatch(db);
+  batch.set(doc(db, "users", user.uid), { id: user.uid, createdAt: serverTimestamp(), lastSeenAt: serverTimestamp() }, { merge: true });
   batch.set(listRef, {
     title,
     slug,
-    creatorId: "rankit-seed",
+    creatorId: user.uid,
     coverImageUrl: null,
     isSeed: true,
     published: true,
     itemCount: itemTitles.length,
     voteCount: 0,
-    createdAt: FieldValue.serverTimestamp(),
-    publishedAt: FieldValue.serverTimestamp(),
-    activityAt: FieldValue.serverTimestamp()
+    createdAt: serverTimestamp(),
+    publishedAt: serverTimestamp(),
+    activityAt: serverTimestamp()
   });
   itemTitles.forEach((itemTitle, index) => {
-    batch.set(listRef.collection("items").doc(), {
+    batch.set(doc(collection(listRef, "items")), {
       title: itemTitle,
       imageUrl: null,
       creatorPosition: index + 1,
       rating: 1000,
       rank: index + 1,
       comparisonCount: 0,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: serverTimestamp()
     });
   });
   await batch.commit();
@@ -60,3 +69,4 @@ for (const [title, itemTitles] of seeds) {
 }
 
 console.log("Seed lists are ready.");
+process.exit(0);

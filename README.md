@@ -9,7 +9,7 @@ RankIt is a public ranking game: publish your order, share it, and let visitors 
 - Public, permanent list pages
 - Touch-friendly drag ordering
 - Creator and community rankings displayed separately
-- Server-verified Elo voting, with one vote per visitor per matchup and a five-vote session cap
+- Atomic Elo voting protected by Firestore rules, with one vote per visitor per matchup and a five-vote session cap
 - Dynamic per-list Open Graph images
 - Curated seed-list script and Firebase security rules
 
@@ -18,7 +18,7 @@ RankIt is a public ranking game: publish your order, share it, and let visitors 
 1. Create a Firebase project and register a web app.
 2. Enable **Anonymous** sign-in in Firebase Authentication.
 3. Create a Firestore database.
-4. Copy `.env.example` to `.env.local` and add the web-app settings plus a Firebase service account’s `project_id`, `client_email`, and `private_key`.
+4. Copy `.env.example` to `.env.local` and add the Firebase web-app settings.
 5. Deploy the included Firestore rules and index configuration:
 
    ```bash
@@ -31,7 +31,7 @@ RankIt is a public ranking game: publish your order, share it, and let visitors 
    npm run seed
    ```
 
-The browser only receives the `NEXT_PUBLIC_FIREBASE_*` values. The service-account values remain server-only and are required for trusted vote writes.
+The web configuration is sufficient for creation, public pages, voting, share cards, and seed data. No paid service or service-account secret is required.
 
 ## Run locally
 

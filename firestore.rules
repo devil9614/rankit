@@ -6,12 +6,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function owner(listId) {
-      return signedIn() && get(/databases/$(database)/documents/lists/$(listId)).data.creatorId == request.auth.uid;
+    function ownerAfterCreate(listId) {
+      return signedIn()
+        && getAfter(/databases/$(database)/documents/lists/$(listId)).data.creatorId == request.auth.uid;
     }
 
-    function ownerAfterCreate(listId) {
-      return signedIn() && getAfter(/databases/$(database)/documents/lists/$(listId)).data.creatorId == request.auth.uid;
+    function previousSessionCount(listId) {
+      return exists(/databases/$(database)/documents/lists/$(listId)/sessions/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/lists/$(listId)/sessions/$(request.auth.uid)).data.count
+        : 0;
+    }
+
+    function validSessionIncrement(listId) {
+      let session = getAfter(/databases/$(database)/documents/lists/$(listId)/sessions/$(request.auth.uid)).data;
+      let vote = getAfter(/databases/$(database)/documents/lists/$(listId)/votes/$(session.lastVoteId)).data;
+      return session.count == previousSessionCount(listId) + 1
+        && session.count <= 5
+        && session.seenPairs.size() == session.count
+        && vote.voterId == request.auth.uid
+        && vote.listId == listId
+        && vote.sequence == session.count;
     }
 
     match /users/{userId} {
@@ -21,23 +35,64 @@ service cloud.firestore {
     match /lists/{listId} {
       allow read: if resource.data.published == true;
       allow create: if signedIn()
-                    && request.resource.data.creatorId == request.auth.uid
-                    && request.resource.data.published == true;
-      allow update, delete: if false;
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.published == true
+        && request.resource.data.itemCount >= 3
+        && request.resource.data.itemCount <= 40
+        && request.resource.data.voteCount == 0;
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["voteCount", "activityAt"])
+        && request.resource.data.voteCount == resource.data.voteCount + 1
+        && validSessionIncrement(listId);
+      allow delete: if false;
 
       match /items/{itemId} {
         allow read: if get(/databases/$(database)/documents/lists/$(listId)).data.published == true;
-        allow create: if ownerAfterCreate(listId);
+        allow create: if ownerAfterCreate(listId)
+          && request.resource.data.creatorPosition >= 1
+          && request.resource.data.creatorPosition <= 40
+          && request.resource.data.rating == 1000
+          && request.resource.data.comparisonCount == 0;
+        allow update: if signedIn()
+          && validSessionIncrement(listId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["rating", "rank", "comparisonCount"])
+          && request.resource.data.rating >= resource.data.rating - 24
+          && request.resource.data.rating <= resource.data.rating + 24
+          && request.resource.data.rank >= 1
+          && request.resource.data.rank <= get(/databases/$(database)/documents/lists/$(listId)).data.itemCount
+          && request.resource.data.comparisonCount >= resource.data.comparisonCount
+          && request.resource.data.comparisonCount <= resource.data.comparisonCount + 1;
+        allow delete: if false;
+      }
+
+      match /votes/{voteId} {
+        allow get: if signedIn() && voteId.matches(request.auth.uid + "_.*");
+        allow list: if false;
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(["listId", "itemAId", "itemBId", "winnerItemId", "voterId", "sequence", "createdAt"])
+          && request.resource.data.voterId == request.auth.uid
+          && request.resource.data.listId == listId
+          && request.resource.data.itemAId != request.resource.data.itemBId
+          && (request.resource.data.winnerItemId == request.resource.data.itemAId
+            || request.resource.data.winnerItemId == request.resource.data.itemBId)
+          && request.resource.data.sequence == previousSessionCount(listId) + 1
+          && request.resource.data.sequence <= 5
+          && getAfter(/databases/$(database)/documents/lists/$(listId)/sessions/$(request.auth.uid)).data.lastVoteId == voteId
+          && getAfter(/databases/$(database)/documents/lists/$(listId)/sessions/$(request.auth.uid)).data.count == request.resource.data.sequence;
         allow update, delete: if false;
       }
 
-      // Votes and per-session counters are written only by the authenticated server route.
-      match /votes/{voteId} {
-        allow read, write: if false;
-      }
-
       match /sessions/{sessionId} {
-        allow read, write: if false;
+        allow get: if signedIn() && sessionId == request.auth.uid;
+        allow list: if false;
+        allow create, update: if signedIn()
+          && sessionId == request.auth.uid
+          && request.resource.data.keys().hasOnly(["count", "lastVoteId", "seenPairs", "updatedAt"])
+          && request.resource.data.count == previousSessionCount(listId) + 1
+          && request.resource.data.count <= 5
+          && request.resource.data.seenPairs.size() == request.resource.data.count
+          && validSessionIncrement(listId);
+        allow delete: if false;
       }
     }
   }

@@ -1,17 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
-import { ensureAnonymousUser, isFirebaseConfigured } from "@/lib/firebase/client";
+import { castFirebaseVote, getVotingSession, isFirebaseConfigured } from "@/lib/firebase/client";
 import { pairKey, rankItems } from "@/lib/ranking";
 import type { RankItem, RankedList } from "@/lib/types";
-
-type VoteResponse = {
-  items: RankItem[];
-  voteCount: number;
-  sessionVotes: number;
-};
 
 function findNextPair(items: RankItem[], seen: Set<string>) {
   const ranked = rankItems(items);
@@ -62,29 +56,32 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
   const creatorOrder = useMemo(() => [...list.items].sort((a, b) => a.creatorPosition - b.creatorPosition), [list.items]);
   const pair = useMemo(() => findNextPair(communityOrder, seenPairs), [communityOrder, seenPairs]);
   const firebaseReady = isFirebaseConfigured();
+  const isPreviewList = list.id.startsWith("demo-");
   const votingComplete = completed >= 5;
+
+  useEffect(() => {
+    if (!firebaseReady || isPreviewList) return;
+    getVotingSession(list.id)
+      .then((session) => {
+        setCompleted(session.count);
+        setSeenPairs(new Set(session.seenPairs));
+      })
+      .catch(() => undefined);
+  }, [firebaseReady, isPreviewList, list.id]);
 
   async function castVote(winnerId: string) {
     if (!pair || isVoting || votingComplete) return;
-    if (!firebaseReady) {
-      setVoteError("Voting opens as soon as Firebase is connected. This is the local preview list.");
+    if (!firebaseReady || isPreviewList) {
+      setVoteError("This is a preview list. Run the Firebase seed once to open real voting.");
       return;
     }
     try {
       setIsVoting(true);
       setVoteError("");
-      const user = await ensureAnonymousUser();
-      const token = await user.getIdToken();
-      const response = await fetch("/api/vote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ listId: list.id, itemAId: pair.first.id, itemBId: pair.second.id, winnerItemId: winnerId })
-      });
-      const body = await response.json() as VoteResponse & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Vote not accepted.");
-      setList((current) => ({ ...current, items: body.items, voteCount: body.voteCount }));
-      setSeenPairs((current) => new Set(current).add(pairKey(pair.first.id, pair.second.id)));
-      setCompleted(body.sessionVotes);
+      const result = await castFirebaseVote(list, pair.first.id, pair.second.id, winnerId);
+      setList((current) => ({ ...current, items: result.items, voteCount: result.voteCount }));
+      setSeenPairs(new Set(result.seenPairs));
+      setCompleted(result.sessionVotes);
     } catch (error) {
       setVoteError(error instanceof Error ? error.message : "Vote not accepted. Try again.");
     } finally {
