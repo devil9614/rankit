@@ -8,8 +8,11 @@ export const runtime = "nodejs";
 // at hobby-project volume. Get a key with no card required at
 // https://aistudio.google.com/apikey — free-tier rate limits are per
 // minute/day, not spend, so worst case is a temporary 429, handled below by
-// falling back to the offline list.
-const MODEL = "gemini-2.5-flash-lite";
+// falling back to the offline list. Google retires model IDs over time
+// (gemini-2.5-flash-lite was retired for new callers) — if suggestions
+// silently start falling back to "offline", check /v1beta/models for the
+// current flash-lite id first.
+const MODEL = "gemini-3.5-flash-lite";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const MAX_SUGGESTIONS = 12;
 
