@@ -9,6 +9,7 @@ import {
   getDocs,
   getFirestore,
   limit,
+  onSnapshot,
   orderBy,
   query,
   runTransaction,
@@ -16,7 +17,7 @@ import {
   where,
   writeBatch
 } from "firebase/firestore";
-import { calculateEloWinner, pairKey } from "@/lib/ranking";
+import { calculateEloWinner, pairKey, type PersonalVote } from "@/lib/ranking";
 import { slugify } from "@/lib/slug";
 import type { DraftItem, ListCard, RankItem, RankedList } from "@/lib/types";
 
@@ -141,13 +142,50 @@ export async function getPublicListBySlug(slug: string) {
   return toList(listDoc.id, listDoc.data(), itemSnapshot.docs.map((item) => toRankItem(item.id, item.data())));
 }
 
+function toPersonalVotes(raw: unknown): PersonalVote[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => {
+      const [winnerId, loserId] = entry.split(">");
+      return { winnerId: winnerId ?? "", loserId: loserId ?? "" };
+    })
+    .filter((vote) => vote.winnerId && vote.loserId);
+}
+
 export async function getVotingSession(listId: string) {
   const user = await ensureAnonymousUser();
   const snapshot = await getDoc(doc(firestore(), "lists", listId, "sessions", user.uid));
   const data = snapshot.data();
   return {
     count: Number(data?.count ?? 0),
-    seenPairs: Array.isArray(data?.seenPairs) ? data.seenPairs.filter((value): value is string => typeof value === "string") : []
+    seenPairs: Array.isArray(data?.seenPairs) ? data.seenPairs.filter((value): value is string => typeof value === "string") : [],
+    picks: toPersonalVotes(data?.picks)
+  };
+}
+
+// Streams the live community order so a visitor watching a busy list sees the
+// board move without reloading.
+export function subscribeToList(
+  listId: string,
+  handlers: { onItems: (items: RankItem[]) => void; onVoteCount: (voteCount: number) => void }
+) {
+  const db = firestore();
+  const unsubscribeItems = onSnapshot(
+    query(collection(db, "lists", listId, "items"), orderBy("creatorPosition", "asc")),
+    (snapshot) => handlers.onItems(snapshot.docs.map((item) => toRankItem(item.id, item.data()))),
+    () => undefined
+  );
+  const unsubscribeList = onSnapshot(
+    doc(db, "lists", listId),
+    (snapshot) => {
+      if (snapshot.exists()) handlers.onVoteCount(Number(snapshot.data().voteCount ?? 0));
+    },
+    () => undefined
+  );
+  return () => {
+    unsubscribeItems();
+    unsubscribeList();
   };
 }
 
@@ -172,6 +210,9 @@ export async function castFirebaseVote(list: RankedList, itemAId: string, itemBI
     const priorSessionVotes = Number(sessionSnapshot.data()?.count ?? 0);
     const priorSeenPairs = Array.isArray(sessionSnapshot.data()?.seenPairs)
       ? sessionSnapshot.data()!.seenPairs.filter((value: unknown): value is string => typeof value === "string")
+      : [];
+    const priorPicks = Array.isArray(sessionSnapshot.data()?.picks)
+      ? sessionSnapshot.data()!.picks.filter((value: unknown): value is string => typeof value === "string")
       : [];
     if (priorSessionVotes >= 5) throw new Error("You have already made five choices on this list.");
 
@@ -209,10 +250,12 @@ export async function castFirebaseVote(list: RankedList, itemAId: string, itemBI
       sequence: sessionVotes,
       createdAt: serverTimestamp()
     });
+    const nextPicks = [...priorPicks, `${winner.id}>${loser.id}`];
     transaction.set(sessionRef, {
       count: sessionVotes,
       lastVoteId: voteId,
       seenPairs: [...priorSeenPairs, canonicalPair],
+      picks: nextPicks,
       updatedAt: serverTimestamp()
     });
     transaction.update(listRef, {
@@ -224,7 +267,8 @@ export async function castFirebaseVote(list: RankedList, itemAId: string, itemBI
       items: ranked,
       voteCount: Number(listSnapshot.data().voteCount ?? 0) + 1,
       sessionVotes,
-      seenPairs: [...priorSeenPairs, canonicalPair]
+      seenPairs: [...priorSeenPairs, canonicalPair],
+      picks: toPersonalVotes(nextPicks)
     };
   });
 }

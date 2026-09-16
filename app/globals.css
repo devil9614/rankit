@@ -159,6 +159,57 @@ a { color: inherit; text-decoration: none; }
 .empty-page .eyebrow { color: var(--acid); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+/* Header nav */
+.header-nav { display: flex; align-items: center; gap: 1.4rem; }
+.header-link { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+.header-link:hover { color: var(--ink); }
+
+/* Rank reveal */
+.rank-reveal { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 0; margin: 0 0 1px; border-top: 1px solid var(--line); }
+.reveal-verdict { display: flex; flex-direction: column; align-items: flex-start; padding: 2.6rem 2.2rem 2.6rem 0; border-right: 1px solid var(--line); }
+.reveal-verdict h2 { margin: .5rem 0 .4rem; font-size: clamp(2rem, 4vw, 2.9rem); letter-spacing: -.055em; line-height: .95; }
+.reveal-note { margin: 0 0 1.6rem; max-width: 260px; color: var(--muted); font-size: .92rem; line-height: 1.45; }
+.reveal-meter { width: 100%; max-width: 260px; height: 10px; background: var(--line); overflow: hidden; }
+.reveal-meter-fill { height: 100%; background: var(--orange); transition: width 420ms ease; }
+.reveal-stat { margin: .7rem 0 1.5rem; font-family: var(--mono); font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.reveal-stat strong { color: var(--ink); font-size: 1.05rem; }
+.reveal-compare { padding: 2.6rem 0 2.6rem 2.2rem; }
+.reveal-column-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: .9rem; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.reveal-list { margin: 0; padding: 0; list-style: none; }
+.reveal-list li { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: .8rem; padding: .85rem 0; border-bottom: 1px solid var(--line); }
+.reveal-rank { font-family: var(--mono); font-size: .9rem; color: var(--muted); }
+.reveal-name { font-weight: 700; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reveal-delta { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+.reveal-delta.same { color: var(--muted); }
+.reveal-delta.up { color: #586630; }
+.reveal-delta.down { color: var(--orange); }
+
+/* Your rankings */
+.history-intro { padding: clamp(3rem, 6vw, 4.6rem) 0 2.4rem; border-bottom: 1px solid var(--line); }
+.history-intro h1 { margin: .7rem 0 .9rem; font-size: clamp(3rem, 8vw, 5.2rem); letter-spacing: -.075em; line-height: .9; }
+.history-intro .lede { max-width: 520px; margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.5; }
+.history-section { padding: 2.6rem 0; border-bottom: 1px solid var(--line); }
+.history-list { margin: 1.4rem 0 0; padding: 0; list-style: none; }
+.history-list li { border-bottom: 1px solid var(--line); }
+.history-list li:last-child { border-bottom: 0; }
+.history-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 1rem; padding: 1rem .3rem; transition: background 140ms ease, padding 140ms ease; }
+.history-list a:hover { background: var(--paper); padding-left: .8rem; }
+.history-title { font-weight: 700; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-date { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+.forget-button { margin: 2rem 0 0; padding: .7rem 1.1rem; background: transparent; border: 1px solid var(--line); font-family: var(--mono); font-size: .74rem; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.forget-button:hover { border-color: var(--orange); color: var(--orange); }
+
+@media (max-width: 860px) {
+  .rank-reveal { grid-template-columns: 1fr; }
+  .reveal-verdict { padding: 2.4rem 0 2rem; border-right: 0; border-bottom: 1px solid var(--line); }
+  .reveal-compare { padding: 2rem 0 2.4rem; }
+  .reveal-meter, .reveal-note { max-width: none; }
+  .reveal-list li { grid-template-columns: 38px minmax(0, 1fr); }
+  .reveal-delta { grid-column: 2; }
+  .history-list a { grid-template-columns: minmax(0, 1fr) auto; }
+  .history-date { display: none; }
+}
+
 @media (max-width: 760px) {
   .page-shell { width: min(100% - 28px, 1220px); }
   .site-header { min-height: 70px; }

@@ -23,6 +23,7 @@ service cloud.firestore {
       return session.count == previousSessionCount(listId) + 1
         && session.count <= 5
         && session.seenPairs.size() == session.count
+        && session.picks.size() == session.count
         && vote.voterId == request.auth.uid
         && vote.listId == listId
         && vote.sequence == session.count;
@@ -87,10 +88,11 @@ service cloud.firestore {
         allow list: if false;
         allow create, update: if signedIn()
           && sessionId == request.auth.uid
-          && request.resource.data.keys().hasOnly(["count", "lastVoteId", "seenPairs", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["count", "lastVoteId", "seenPairs", "picks", "updatedAt"])
           && request.resource.data.count == previousSessionCount(listId) + 1
           && request.resource.data.count <= 5
           && request.resource.data.seenPairs.size() == request.resource.data.count
+          && request.resource.data.picks.size() == request.resource.data.count
           && validSessionIncrement(listId);
         allow delete: if false;
       }

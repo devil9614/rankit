@@ -16,6 +16,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { SiteHeader } from "@/components/site-header";
 import { createPublishedList, isFirebaseConfigured } from "@/lib/firebase/client";
+import { rememberCreatedList } from "@/lib/local-history";
 import { starterPacks, type StarterPack } from "@/lib/starter-packs";
 import type { DraftItem } from "@/lib/types";
 
@@ -130,12 +131,20 @@ export function CreateListClient() {
       setIsSuggesting(true);
       setError("");
       setSuggestionMessage("");
-      const response = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
-      const data = await response.json() as { items?: string[] };
+      const response = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: query, have: items.map((item) => item.title.trim()).filter(Boolean) })
+      });
+      const data = await response.json() as { items?: string[]; source?: string };
       const currentNames = new Set(items.map((item) => item.title.trim().toLocaleLowerCase()));
       const fresh = (data.items ?? []).filter((item) => !currentNames.has(item.toLocaleLowerCase()));
       setSuggestions(fresh);
-      setSuggestionMessage(fresh.length ? `${fresh.length} useful additions are ready.` : "No reliable ideas for that topic yet. Paste a list instead.");
+      setSuggestionMessage(
+        fresh.length
+          ? `${fresh.length} ideas ready${data.source === "ai" ? "" : " from the built-in list"}. Add the ones that belong.`
+          : "No reliable ideas for that topic yet. Paste a list instead."
+      );
     } catch {
       setSuggestionMessage("Suggestions are unavailable right now. Paste a list instead.");
     } finally {
@@ -165,6 +174,7 @@ export function CreateListClient() {
     try {
       setIsPublishing(true);
       const slug = await createPublishedList(normalizedTitle, completeItems);
+      rememberCreatedList(slug, normalizedTitle);
       router.push(`/l/${slug}`);
     } catch {
       setError("That list could not be published just now. Check the Firebase setup and try again.");

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { RankReveal } from "@/components/rank-reveal";
 import { SiteHeader } from "@/components/site-header";
-import { castFirebaseVote, getVotingSession, isFirebaseConfigured } from "@/lib/firebase/client";
-import { pairKey, rankItems } from "@/lib/ranking";
+import { castFirebaseVote, getVotingSession, isFirebaseConfigured, subscribeToList } from "@/lib/firebase/client";
+import { rememberVotedList } from "@/lib/local-history";
+import { pairKey, rankItems, type PersonalVote } from "@/lib/ranking";
 import type { RankItem, RankedList } from "@/lib/types";
 
 function findNextPair(items: RankItem[], seen: Set<string>) {
@@ -49,6 +51,7 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
   const [list, setList] = useState(initialList);
   const [seenPairs, setSeenPairs] = useState<Set<string>>(() => new Set());
   const [completed, setCompleted] = useState(0);
+  const [picks, setPicks] = useState<PersonalVote[]>([]);
   const [isVoting, setIsVoting] = useState(false);
   const [voteError, setVoteError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -65,8 +68,20 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
       .then((session) => {
         setCompleted(session.count);
         setSeenPairs(new Set(session.seenPairs));
+        setPicks(session.picks);
       })
       .catch(() => undefined);
+  }, [firebaseReady, isPreviewList, list.id]);
+
+  // Keep the community board live while the visitor is reading it.
+  useEffect(() => {
+    if (!firebaseReady || isPreviewList) return;
+    return subscribeToList(list.id, {
+      onItems: (items) => {
+        if (items.length) setList((current) => ({ ...current, items }));
+      },
+      onVoteCount: (voteCount) => setList((current) => ({ ...current, voteCount }))
+    });
   }, [firebaseReady, isPreviewList, list.id]);
 
   async function castVote(winnerId: string) {
@@ -82,6 +97,8 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
       setList((current) => ({ ...current, items: result.items, voteCount: result.voteCount }));
       setSeenPairs(new Set(result.seenPairs));
       setCompleted(result.sessionVotes);
+      setPicks(result.picks);
+      rememberVotedList(list.slug, list.title);
     } catch (error) {
       setVoteError(error instanceof Error ? error.message : "Vote not accepted. Try again.");
     } finally {
@@ -137,8 +154,8 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
               <div className="vote-finish">
                 <p className="vote-kicker">You made your case.</p>
                 <h2 id="vote-title">The board has moved.</h2>
-                <p>Five choices added. See where the crowd has the argument now.</p>
-                <a className="button button-light" href="#community-ranking">See community order ↓</a>
+                <p>Five choices added. See how your order stacks up against the room.</p>
+                <a className="button button-light" href="#rank-reveal">See your verdict ↓</a>
               </div>
             ) : pair ? (
               <>
@@ -162,6 +179,17 @@ export function ListDetailClient({ initialList }: { initialList: RankedList }) {
             )}
           </aside>
         </div>
+
+        {picks.length > 0 && (
+          <div id="rank-reveal">
+            <RankReveal
+              communityOrder={communityOrder}
+              picks={picks}
+              onShare={() => void share()}
+              shareLabel={copied ? "Link copied" : "Share your verdict"}
+            />
+          </div>
+        )}
 
         <section className="community-ranking" id="community-ranking" aria-labelledby="community-title">
           <div className="section-heading">
